@@ -36,10 +36,8 @@
     .signup-link:hover { color: #fff; }
     .sign-in-btn { width: 100%; background: linear-gradient(135deg, #fff, #f0f0f0); color: #0A1D37; border: none; padding: 0.75rem; border-radius: 16px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.3s ease; margin-bottom: 0.75rem; }
     .sign-in-btn:hover { background: linear-gradient(135deg, #f0f0f0, #ddd); transform: translateY(-2px) scale(1.02); box-shadow: 0 5px 15px rgba(255,255,255,0.3); }
-    .oauth-btn { flex: 1; background: linear-gradient(135deg, #2a3a4a, #334455); color: #fff; border: 1px solid #445566; padding: 0.75rem; border-radius: 12px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease; margin: 0 0rem; display: flex; align-items: center; justify-content: center; gap: 0.3rem; }
-    .oauth-btn:hover { border-color: #667788; background: linear-gradient(135deg, #334455, #445566); transform: translateY(-2px) scale(1.02); box-shadow: 0 4px 12px rgba(255,255,255,0.25); }
-    .oauth-container { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-    @media (max-width: 768px) { .main-card { max-width: 400px; height: 480px; } .left-panel { height: 140px; } .right-panel { padding: 1.5rem; } .oauth-container { flex-direction: column; } .oauth-btn { width: 100%; margin: 0 0 0.5rem 0; } }
+    .sign-in-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    @media (max-width: 768px) { .main-card { max-width: 400px; height: 480px; } .left-panel { height: 140px; } .right-panel { padding: 1.5rem; } }
   </style>
   <style>
     .god-rays {
@@ -59,7 +57,6 @@
         pointer-events: none;
         z-index: -1;
     }
-
     .god-rays::after {
         content: "";
         position: absolute;
@@ -69,6 +66,14 @@
         animation: god-rays 40s linear infinite;
         background-attachment: fixed;
         mix-blend-mode: difference;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes god-rays {
+      0% { background-position: 0% 0%, 0% 0%; }
+      100% { background-position: 100% 100%, 100% 100%; }
     }
   </style>
 </head>
@@ -95,11 +100,7 @@
           <label class="remember-me"><input type="checkbox" id="remember">Remember me</label>
           <a href="/pages/settings/p3.html" class="signup-link">Sign up</a>
         </div>
-        <button type="submit" class="sign-in-btn">Sign In</button>
-        <div class="oauth-container">
-          <button onclick="signInWithOAuth('google')" class="oauth-btn"><img src="https://cdn.simpleicons.org/google/ffffff" alt="Google" style="width: 16px; height: 16px;">Google</button>
-          <button onclick="signInWithOAuth('discord')" class="oauth-btn"><img src="https://cdn.simpleicons.org/discord/ffffff" alt="Discord" style="width: 16px; height: 16px;">Discord</button>
-        </div>
+        <button type="submit" class="sign-in-btn" id="submit-btn">Sign In</button>
       </form>
       <script type="text/javascript">
 	atOptions = {
@@ -114,12 +115,55 @@
     <script type="text/javascript" src="//www.highperformanceformat.com/fee48967b89db2d0bd32a6c670ffa744/invoke.js"></script>
   </div>
   
+  <script src="/storage/js/popup.js"></script>
   <script>
-    let oauthVisible = false;
-    function generateState(){return Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15);}
-    window.addEventListener('message',(e)=>{if(e.origin!==window.location.origin){console.error('Invalid origin:',e.origin);return;}const t=localStorage.getItem('oauth_state');e.data.type==='oauth_success'&&e.data.state===t?(localStorage.removeItem('oauth_state'),window.location.href='/pages/settings/p2.html'):console.error('State mismatch or invalid message:',e.data);});
-    document.getElementById('login-form').addEventListener('submit',async e=>{e.preventDefault();const t=document.getElementById('email').value,o=document.getElementById('password').value;try{const e=await fetch('/api/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:t,password:o}),credentials:'include'}),a=await e.json();e.ok?(alert(a.message),window.location.href='/pages/settings/p2.html'):alert(`Error: ${a.error}`)}catch(e){alert(`Error: ${e.message}`)}});
-    async function signInWithOAuth(e){try{const t=generateState();localStorage.setItem('oauth_state',t);const o=await fetch('/api/signin/oauth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:e,state:t}),credentials:'include'}),a=await o.json();o.ok&&a.url?(console.log('Opening OAuth URL:',a.url),window.open(a.url,'_blank','noopener,noreferrer')):alert(`Error: ${a.error}`)}catch(e){console.error('OAuth error:',e),alert(`Error: ${e.message}`)}}
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      try {
+        const response = await fetch('/api/signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password }),
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showPopup('Login successful! Redirecting...', 'success');
+          setTimeout(() => {
+            if (window.parent !== window) {
+              window.parent.postMessage({ type: 'login_success', user: data.user }, window.location.origin);
+              const iframe = window.frameElement;
+              if (iframe) {
+                iframe.src = '/pages/settings/p2.html';
+              }
+            } else {
+              window.location.href = '/pages/settings/p2.html';
+            }
+          }, 500);
+        } else {
+          showPopup(data.error || 'Login failed. Please try again.', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In';
+        }
+      } catch (error) {
+        showPopup('Network error. Please check your connection.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+      }
+    });
+    
+    if (window.parent !== window) {
+      document.body.style.minHeight = '100vh';
+    }
   </script>
   <script src="/storage/js/settings.js"></script>
 </body>

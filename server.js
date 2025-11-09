@@ -11,12 +11,13 @@ import { uvPath } from "@titaniumnetwork-dev/ultraviolet";
 import path, { join } from "node:path";
 import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
 import session from "express-session";
 import dotenv from "dotenv";
 import fileUpload from "express-fileupload";
 import { signupHandler } from "./server/api/signup.js";
 import { signinHandler } from "./server/api/signin.js";
+import db from "./server/db.js";
+import bcrypt from "bcrypt";
 import cors from "cors";
 import fetch from "node-fetch";
 import fs from 'fs';
@@ -25,6 +26,7 @@ import rateLimit from "express-rate-limit";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import net from "node:net";
 import cluster from "node:cluster";
+import { randomUUID } from "crypto";
 
 dotenv.config();
 const envFile = `.env.${process.env.NODE_ENV || 'production'}`;
@@ -32,8 +34,6 @@ if (fs.existsSync(envFile)) { dotenv.config({ path: envFile }); }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicPath = "public";
-const { SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bare = createBareServer("/bare/", {
   requestOptions: {
     agent: false, 
@@ -44,6 +44,7 @@ const app = express();
 app.use(cookieParser());
 
 app.use(express.static(publicPath));
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 app.use("/storage/data", express.static(path.join(__dirname, "storage", "data"), {
   setHeaders: (res, path) => {
     if (path.endsWith(".json")) {
@@ -168,69 +169,55 @@ app.get("/results/:query", async (req, res) => {
 
 app.post("/api/signup", signupHandler);
 app.post("/api/signin", signinHandler);
-app.post("/api/signout", async (req, res) => {
+app.get("/api/verify-email", (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).send('<html><body><h1>Invalid verification link</h1></body></html>');
+  }
   try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    req.session.destroy();
-    return res.status(200).json({ message: "Signout successful" });
+    const user = db.prepare('SELECT id FROM users WHERE verification_token = ?').get(token);
+    if (!user) {
+      return res.status(400).send('<html><body><h1>Invalid or expired verification link</h1></body></html>');
+    }
+    const now = Date.now();
+    db.prepare('UPDATE users SET email_verified = 1, verification_token = NULL, updated_at = ? WHERE id = ?').run(now, user.id);
+    return res.status(200).send('<html><body style="background:#0a1d37;color:#fff;font-family:Arial;text-align:center;padding:50px;"><h1>Email verified successfully!</h1><p>You can now log in to your account.</p><a href="/pages/settings/p.html" style="color:#3b82f6;">Go to Login</a></body></html>');
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Verification error:', error);
+    return res.status(500).send('<html><body><h1>Verification failed</h1></body></html>');
   }
 });
-app.get("/api/profile", async (req, res) => {
+app.post("/api/signout", (req, res) => {
+  req.session.destroy();
+  return res.status(200).json({ message: "Signout successful" });
+});
+app.get("/api/profile", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const { data, error } = await supabase.auth.getUser(req.session.access_token);
-    if (error) throw error;
-    return res.status(200).json({ user: data.user });
+    const user = db.prepare('SELECT id, email, username, bio, avatar_url, is_admin, created_at FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.status(200).json({ user: {
+      id: user.id,
+      email: user.email,
+      user_metadata: {
+        name: user.username,
+        bio: user.bio,
+        avatar_url: user.avatar_url
+      },
+      app_metadata: {
+        provider: 'email',
+        is_admin: user.is_admin === 1
+      }
+    }});
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.post("/api/signin/oauth", async (req, res) => {
-  const { provider } = req.body;
-  const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-  const host = req.headers.host;
-  if (!host) {
-    return res.status(400).json({ error: "Host header missing" });
-  }
-  const redirectTo = `${protocol}://${host}/auth/callback`;
-  try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo }
-    });
-    if (error) throw error;
-    return res.status(200).json({ url: data.url, openInNewTab: true });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-app.get("/auth/callback", (req, res) => {
-  return res.sendFile(join(__dirname, publicPath, "auth-callback.html"));
-});
-app.post("/api/set-session", async (req, res) => {
-  const { access_token, refresh_token } = req.body;
-  if (!access_token || !refresh_token) {
-    return res.status(400).json({ error: "Invalid session tokens" });
-  }
-  try {
-    const { data, error } = await supabase.auth.setSession({
-      access_token,
-      refresh_token
-    });
-    if (error) throw error;
-    req.session.user = data.user;
-    req.session.access_token = access_token;
-    return res.status(200).json({ message: "Session set successfully" });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-app.post("/api/upload-profile-pic", async (req, res) => {
+app.post("/api/upload-profile-pic", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -240,102 +227,244 @@ app.post("/api/upload-profile-pic", async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
     const userId = req.session.user.id;
-    const fileName = `${userId}/${Date.now()}-${file.name}`;
-    const { data, error } = await supabase.storage
-      .from('profile-pics')
-      .upload(fileName, file.data, { contentType: file.mimetype });
-    if (error) throw error;
-    const { data: publicUrlData } = supabase.storage
-      .from('profile-pics')
-      .getPublicUrl(fileName);
-    const { error: updateError } = await supabase.auth.updateUser({
-      data: { avatar_url: publicUrlData.publicUrl }
-    });
-    if (updateError) throw updateError;
-    return res.status(200).json({ url: publicUrlData.publicUrl });
+    const uploadsDir = path.join(__dirname, 'public', 'uploads', 'profile-pics', userId);
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const fileName = `${Date.now()}-${file.name}`;
+    const filePath = path.join(uploadsDir, fileName);
+    fs.writeFileSync(filePath, file.data);
+    const avatarUrl = `/uploads/profile-pics/${userId}/${fileName}`;
+    const now = Date.now();
+    db.prepare('UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?').run(avatarUrl, now, userId);
+    req.session.user.avatar_url = avatarUrl;
+    return res.status(200).json({ url: avatarUrl });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Upload error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.post("/api/update-profile", async (req, res) => {
+app.post("/api/update-profile", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
     const { username, bio } = req.body;
-    const { error } = await supabase.auth.updateUser({
-      data: { name: username, bio }
-    });
-    if (error) throw error;
+    const now = Date.now();
+    db.prepare('UPDATE users SET username = ?, bio = ?, updated_at = ? WHERE id = ?').run(username || null, bio || null, now, req.session.user.id);
+    req.session.user.username = username;
+    req.session.user.bio = bio;
     return res.status(200).json({ message: "Profile updated" });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Update error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.post("/api/save-localstorage", async (req, res) => {
+app.post("/api/save-localstorage", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
     const { data } = req.body;
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert({ user_id: req.session.user.id, localstorage_data: data }, { onConflict: 'user_id' });
-    if (error) throw error;
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO user_settings (user_id, localstorage_data, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET localstorage_data = ?, updated_at = ?
+    `).run(req.session.user.id, data, now, data, now);
     return res.status(200).json({ message: "LocalStorage saved" });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Save error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.get("/api/load-localstorage", async (req, res) => {
+app.get("/api/load-localstorage", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('localstorage_data')
-      .eq('user_id', req.session.user.id)
-      .single();
-    if (error) throw error;
-    return res.status(200).json({ data: data?.localstorage_data || '{}' });
+    const result = db.prepare('SELECT localstorage_data FROM user_settings WHERE user_id = ?').get(req.session.user.id);
+    return res.status(200).json({ data: result?.localstorage_data || '{}' });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Load error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.delete("/api/delete-account", async (req, res) => {
+app.delete("/api/delete-account", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const { error } = await supabase.rpc('delete_user', { user_id: req.session.user.id });
-    if (error) throw error;
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.session.user.id);
     req.session.destroy();
     return res.status(200).json({ message: "Account deleted" });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Delete error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
-app.post("/api/link-account", async (req, res) => {
+app.get("/api/changelog", (req, res) => {
+  try {
+    const changelogs = db.prepare(`
+      SELECT c.*, u.username as author_name
+      FROM changelog c
+      LEFT JOIN users u ON c.author_id = u.id
+      ORDER BY c.created_at DESC
+      LIMIT 50
+    `).all();
+    return res.status(200).json({ changelogs });
+  } catch (error) {
+    console.error('Changelog error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.get("/api/feedback", (req, res) => {
+  try {
+    const feedback = db.prepare(`
+      SELECT f.*, u.username, u.email
+      FROM feedback f
+      LEFT JOIN users u ON f.user_id = u.id
+      ORDER BY f.created_at DESC
+      LIMIT 100
+    `).all();
+    return res.status(200).json({ feedback });
+  } catch (error) {
+    console.error('Feedback list error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.post("/api/changelog", (req, res) => {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   try {
-    const { provider } = req.body;
-    const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-    const host = req.headers.host;
-    if (!host) {
-      return res.status(400).json({ error: "Host header missing" });
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user || !user.is_admin) {
+      return res.status(403).json({ error: "Admin access required" });
     }
-    const redirectTo = `${protocol}://${host}/auth/callback`;
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo, skipBrowserRedirect: true }
-    });
-    if (error) throw error;
-    return res.status(200).json({ url: data.url, openInNewTab: true });
+    const { title, content } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ error: "Title and content are required" });
+    }
+    const id = randomUUID();
+    const now = Date.now();
+    db.prepare('INSERT INTO changelog (id, title, content, author_id, created_at) VALUES (?, ?, ?, ?, ?)').run(id, title, content, req.session.user.id, now);
+    return res.status(201).json({ message: "Changelog created", id });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error('Changelog create error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.post("/api/feedback", (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const { content } = req.body;
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({ error: "Feedback content is required" });
+    }
+    const id = randomUUID();
+    const now = Date.now();
+    db.prepare('INSERT INTO feedback (id, user_id, content, created_at) VALUES (?, ?, ?, ?)').run(id, req.session.user.id, content.trim(), now);
+    return res.status(201).json({ message: "Feedback submitted", id });
+  } catch (error) {
+    console.error('Feedback error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.get("/api/admin/feedback", (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user || !user.is_admin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    const feedback = db.prepare(`
+      SELECT f.*, u.email, u.username
+      FROM feedback f
+      LEFT JOIN users u ON f.user_id = u.id
+      ORDER BY f.created_at DESC
+      LIMIT 100
+    `).all();
+    return res.status(200).json({ feedback });
+  } catch (error) {
+    console.error('Admin feedback error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.get("/api/admin/stats", (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user || !user.is_admin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const feedbackCount = db.prepare('SELECT COUNT(*) as count FROM feedback').get().count;
+    const changelogCount = db.prepare('SELECT COUNT(*) as count FROM changelog').get().count;
+    return res.status(200).json({ 
+      userCount, 
+      feedbackCount, 
+      changelogCount 
+    });
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.get("/api/admin/users", (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user || !user.is_admin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    const users = db.prepare(`
+      SELECT id, email, username, created_at, is_admin
+      FROM users
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all();
+    return res.status(200).json({ users });
+  } catch (error) {
+    console.error('Admin users error:', error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+app.post("/api/change-password", async (req, res) => {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Current and new password are required" });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters" });
+    }
+    const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.session.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+    const now = Date.now();
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?').run(newPasswordHash, now, req.session.user.id);
+    return res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error('Change password error:', error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 

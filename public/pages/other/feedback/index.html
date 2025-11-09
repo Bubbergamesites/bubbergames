@@ -1,129 +1,384 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <!-- Google Tag Manager -->
-    <script>
-      (function (w, d, s, l, i) {
-        w[l] = w[l] || [];
-        w[l].push({
-          "gtm.start": new Date().getTime(),
-          event: "gtm.js",
-        });
-        var f = d.getElementsByTagName(s)[0],
-          j = d.createElement(s),
-          dl = l != "dataLayer" ? "&l=" + l : "";
-        j.async = true;
-        j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
-        f.parentNode.insertBefore(j, f);
-      })(window, document, "script", "dataLayer", "GTM-WPH7NCG4");
-    </script>
-    <!-- End Google Tag Manager -->
-
-    <!-- Google tag (gtag.js) -->
-    <script
-      async
-      src="https://www.googletagmanager.com/gtag/js?id=G-SHE360M0YP"
-    ></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-
-      gtag("config", "G-SHE360M0YP");
-    </script>
-    <script
-      async
-      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6640595376330309"
-      crossorigin="anonymous"
-    ></script>
-
-    <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
-    <meta property="benrogo:index" , content="index" />
-    <meta property="benrogo:uvpath" , content="/static/uv/uv.config.js" />
-
-    <title>PeteZah</title>
-    <link
-      rel="icon"
-      type="icon/x-icon"
-      href="storage/images/logo-png-removebg-preview.png"
-    />
-
-    <meta name="description" content="PeteZah, privacy tool" />
-    <meta name="keywords" content="security, privacy" />
-    <style>
-      #loadingMessage {
-        width: 100%;
-        height: 100%;
-        z-index: 1000;
-        background: #ccc;
-        top: 0px;
-        left: 0px;
-        position: absolute;
-        inset: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
-
-      .feedback-iframe {
-        position: absolute;
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PeteZah | Feedback</title>
+  <link rel="icon" type="image/x-icon" href="/storage/images/logo-png-removebg-preview.png">
+  <link rel="stylesheet" href="/storage/css/themes.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: #0A1D37;
+      min-height: 100vh;
+      padding: 20px;
+      color: #fff;
+      position: relative;
+    }
+    .god-rays {
+        position: fixed;
         top: 0;
         left: 0;
-        bottom: 0;
-        right: 0;
         width: 100%;
         height: 100%;
-        border: none;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        z-index: 999999;
+        --stripes: repeating-linear-gradient(100deg, rgba(20, 40, 60, 0.8) 0%, rgba(20, 40, 60, 0.8) 7%, transparent 10%, transparent 12%, rgba(20, 40, 60, 0.8) 16%);
+        --rays: repeating-linear-gradient(100deg, rgba(30, 50, 90, 0.9) 10%, rgba(20, 40, 80, 0.9) 15%, rgba(30, 50, 90, 0.9) 20%, rgba(20, 40, 80, 0.9) 25%, rgba(30, 50, 90, 0.9) 30%);
+        background-image: var(--stripes), var(--rays);
+        background-size: 300%, 200%;
+        background-position: 50% 50%, 50% 50%;
+        animation: fadeIn 2s ease;
+        mask-image: radial-gradient(ellipse at 100% 0%, rgba(255, 255, 255, 0) 40%, transparent 70%);
+        -webkit-mask-image: radial-gradient(ellipse at 100% 0%, white 40%, transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+    }
+    .god-rays::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: var(--stripes), var(--rays);
+        background-size: 200%, 100%;
+        animation: god-rays 40s linear infinite;
+        background-attachment: fixed;
+        mix-blend-mode: difference;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes god-rays {
+      0% { background-position: 0% 0%, 0% 0%; }
+      100% { background-position: 100% 100%, 100% 100%; }
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .add-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #3b82f6;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+    .add-btn:hover {
+      transform: scale(1.1) rotate(90deg);
+      box-shadow: 0 6px 24px rgba(59, 130, 246, 0.4);
+    }
+    .section {
+      background: linear-gradient(135deg, #111117, #182129);
+      border-radius: 24px;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 12px 25px rgba(0,0,0,0.7);
+      border: 1px solid #3a4a5a;
+    }
+    .feedback-item {
+      background: rgba(30, 41, 59, 0.4);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border-left: 4px solid #3b82f6;
+    }
+    .feedback-item .meta {
+      color: #99aabb;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .feedback-item .content {
+      color: #fff;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      color: #ccddee;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+    .form-group textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid #445566;
+      color: #fff;
+      padding: 0.5rem 0;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.3s ease;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 150px;
+    }
+    .form-group textarea:focus {
+      border-bottom-color: #fff;
+      box-shadow: 0 2px 5px rgba(255,255,255,0.1);
+    }
+    .form-group textarea::placeholder {
+      color: #667788;
+    }
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: inherit;
+      background: linear-gradient(135deg, #fff, #f0f0f0);
+      color: #0A1D37;
+    }
+    .btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #f0f0f0, #ddd);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 5px 15px rgba(255,255,255,0.3);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-full {
+      width: 100%;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #99aabb;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: linear-gradient(135deg, #111117, #182129);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 12px 25px rgba(0,0,0,0.7);
+      border: 1px solid #3a4a5a;
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: transparent;
+      border: none;
+      color: #99aabb;
+      font-size: 24px;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-close:hover {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="god-rays"></div>
+  <div class="container">
+    <div class="header">
+      <h1>Feedback</h1>
+      <button class="add-btn" id="add-btn" title="Add Feedback"><i class="fas fa-plus"></i></button>
+    </div>
+
+    <div class="section">
+      <div id="feedback-list">
+        <div class="empty-state">Loading feedback...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="feedback-modal">
+    <div class="modal-content">
+      <button class="modal-close" id="close-modal"><i class="fas fa-times"></i></button>
+      <h2 style="margin-bottom: 24px; font-size: 1.5rem; font-weight: 600;">Post Feedback</h2>
+      <form id="feedback-form">
+        <div class="form-group">
+          <label for="content">Your Feedback</label>
+          <textarea id="content" placeholder="Share your thoughts, suggestions, or report issues..." required></textarea>
+        </div>
+        <button type="submit" class="btn btn-full" id="submit-btn"><i class="fas fa-paper-plane"></i> Submit</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/storage/js/popup.js"></script>
+  <script>
+    let isAuthenticated = false;
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/profile', { credentials: 'include' });
+        isAuthenticated = response.ok;
+      } catch (error) {
+        isAuthenticated = false;
+      }
+    }
+
+    async function loadFeedback() {
+      try {
+        const list = document.getElementById('feedback-list');
+        let feedback = [];
+        
+        try {
+          const adminResponse = await fetch('/api/admin/feedback', { credentials: 'include' });
+          if (adminResponse.ok) {
+            const adminData = await adminResponse.json();
+            if (adminData.feedback) {
+              feedback = adminData.feedback;
+            }
+          }
+        } catch {}
+        
+        if (feedback.length === 0) {
+          const publicResponse = await fetch('/api/feedback');
+          const publicData = await publicResponse.json();
+          if (publicData.feedback) {
+            feedback = publicData.feedback;
+          }
+        }
+        
+        if (feedback && feedback.length > 0) {
+          list.innerHTML = feedback.map(item => {
+            const date = new Date(item.created_at);
+            const displayName = item.username || (item.email ? item.email.split('@')[0] : 'Anonymous');
+            return `
+              <div class="feedback-item">
+                <div class="meta">
+                  <i class="fas fa-user"></i>
+                  ${displayName} • ${date.toLocaleDateString()}
+                </div>
+                <div class="content">${item.content}</div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          list.innerHTML = '<div class="empty-state">No feedback yet. Be the first to share!</div>';
+        }
+      } catch (error) {
+        document.getElementById('feedback-list').innerHTML = '<div class="empty-state">Failed to load feedback</div>';
+      }
+    }
+
+    document.getElementById('add-btn').addEventListener('click', () => {
+      checkAuth().then(() => {
+        if (isAuthenticated) {
+          document.getElementById('feedback-modal').classList.add('active');
+        } else {
+          showPopup('Please sign in to post feedback', 'error');
+          if (window.parent !== window) {
+            const iframe = window.frameElement;
+            if (iframe) {
+              iframe.src = '/pages/settings/p.html';
+            }
+          } else {
+            window.location.href = '/pages/settings/p.html';
+          }
+        }
+      });
+    });
+
+    document.getElementById('close-modal').addEventListener('click', () => {
+      document.getElementById('feedback-modal').classList.remove('active');
+    });
+
+    document.getElementById('feedback-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const content = document.getElementById('content').value.trim();
+      
+      if (!content) {
+        showPopup('Please enter your feedback', 'error');
+        return;
       }
       
-      body, html {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        overflow: hidden;
-        z-index: 99999;
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+      
+      try {
+        const response = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ content })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showPopup('Feedback submitted successfully!', 'success');
+          document.getElementById('feedback-form').reset();
+          document.getElementById('feedback-modal').classList.remove('active');
+          loadFeedback();
+        } else {
+          showPopup(data.error || 'Failed to submit feedback', 'error');
+        }
+      } catch (error) {
+        showPopup('Network error', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit';
       }
-    </style>
-  </head>
+    });
 
-  <body>
-    <!-- Google Tag Manager (noscript) -->
-    <noscript
-      ><iframe
-        src="https://www.googletagmanager.com/ns.html?id=GTM-WPH7NCG4"
-        height="0"
-        width="0"
-        style="display: none; visibility: hidden"
-      ></iframe
-    ></noscript>
-    <!-- End Google Tag Manager (noscript) -->
-
-    <script>
-      $("#feedbackFrame").ready(function () {
-        $("#loadingMessage").css("display", "none");
-      });
-
-      $("#feedbackFrame").load(function () {
-        $("#loadingMessage").css("display", "none");
-      });
-    </script>
-
-    <iframe
-      src="/static/embed.html#https://petezah.feedbase.app/feedback"
-      class="feedback-iframe"
-      id="feedbackFrame"
-      title="Feedback"
-    />
-    <div id="loadingMessage">Loading...</div>
-  </body>
+    checkAuth();
+    loadFeedback();
+  </script>
+</body>
 </html>

@@ -1,19 +1,41 @@
-import { createClient } from "@supabase/supabase-js";
+import bcrypt from 'bcrypt';
+import db from '../db.js';
 
 export async function signinHandler(req, res) {
-  const { SUPABASE_URL, SUPABASE_KEY } = process.env;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
   const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-    req.session.user = data.user;
-    req.session.access_token = data.session.access_token;
-    res.status(200).json({ user: data.user, message: "Signin successful" });
+    const user = db.prepare('SELECT id, email, password_hash, username, bio, avatar_url, email_verified FROM users WHERE email = ?').get(email);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (!user.email_verified) {
+      return res.status(401).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
+    }
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      bio: user.bio,
+      avatar_url: user.avatar_url
+    };
+
+    res.status(200).json({ user: req.session.user, message: 'Signin successful' });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Signin error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }

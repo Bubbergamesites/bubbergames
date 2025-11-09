@@ -124,3 +124,17 @@ document.addEventListener("click", (event) => {
 		widgetPopup.classList.remove("show");
 	}
 });
+
+window.addEventListener("message", (event) => {
+	if (event.origin !== window.location.origin) {
+		return;
+	}
+	
+	if (event.data.type === "login_success" || event.data.type === "signup_success") {
+		mainFrame.src = "pages/settings/p2.html";
+	}
+	
+	if (event.data.type === "logout") {
+		mainFrame.src = "pages/settings/p.html";
+	}
+});
