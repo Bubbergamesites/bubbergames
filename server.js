@@ -16,6 +16,9 @@ import dotenv from "dotenv";
 import fileUpload from "express-fileupload";
 import { signupHandler } from "./server/api/signup.js";
 import { signinHandler } from "./server/api/signin.js";
+import { adminUserActionHandler } from './server/api/admin-user-action.js';
+import { addCommentHandler, getCommentsHandler } from './server/api/comments.js';
+import { likeHandler, getLikesHandler } from './server/api/likes.js';
 import db from "./server/db.js";
 import bcrypt from "bcrypt";
 import cors from "cors";
@@ -163,6 +166,11 @@ app.get("/results/:query", async (req, res) => {
 
 app.post("/api/signup", signupHandler);
 app.post("/api/signin", signinHandler);
+app.post('/api/admin/user-action', adminUserActionHandler);
+app.post('/api/comment', addCommentHandler);
+app.get('/api/comments', getCommentsHandler);
+app.post('/api/like', likeHandler);
+app.get('/api/likes', getLikesHandler);
 app.get("/api/verify-email", (req, res) => {
   const { token } = req.query;
   if (!token) {
@@ -421,12 +429,19 @@ app.get("/api/admin/users", (req, res) => {
       return res.status(403).json({ error: "Admin access required" });
     }
     const users = db.prepare(`
-      SELECT id, email, username, created_at, is_admin
+      SELECT id, email, username, created_at, is_admin, avatar_url, bio, school, age
       FROM users
       ORDER BY created_at DESC
       LIMIT 100
     `).all();
-    return res.status(200).json({ users });
+    // Optionally, join with a sessions or logs table to get last IP, or store IP on signup
+    // For now, add a placeholder for IP and signup link
+    const usersWithExtras = users.map(u => ({
+      ...u,
+      ip: null, // TODO: populate from session/logs if available
+      signup_link: null // TODO: store or infer if available
+    }));
+    return res.status(200).json({ users: usersWithExtras });
   } catch (error) {
     console.error('Admin users error:', error);
     return res.status(500).json({ error: "Internal server error" });

@@ -4,9 +4,9 @@ import dotenv from "dotenv";
 import { randomUUID } from 'crypto';
 
 export async function signupHandler(req, res) {
-  const { email, password } = req.body;
+  const { email, password, school, age } = req.body;
   
-  if (!email || !password) {
+  if (!email || password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
@@ -28,9 +28,9 @@ export async function signupHandler(req, res) {
     const isAdmin = isFirstUser || email === process.env.ADMIN_EMAIL;
 
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, created_at, updated_at, is_admin, email_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, email, passwordHash, now, now, isAdmin ? 1 : 0, 1);
+      INSERT INTO users (id, email, password_hash, created_at, updated_at, is_admin, email_verified, school, age)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, email, passwordHash, now, now, isAdmin ? 1 : 0, 1, school || null, age || null);
 
     res.status(201).json({ 
       message: isFirstUser 
