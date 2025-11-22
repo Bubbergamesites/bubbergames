@@ -30,6 +30,6 @@
     "http-proxy-middleware": "^3.0.5",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.10",
-    "proper-lockfile": "^4.1.2",
+    "proper-lockfile": "^4.1.2"
   }
 }
