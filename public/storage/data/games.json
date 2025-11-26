@@ -55,6 +55,22 @@
         "racing"
       ]
     },
+     {
+      "label": "EaglerCraft-Mobile",
+      "imageUrl": "/storage/ag/g/Eagler-Mobile/IMG_2545.jpeg",
+      "url": "/iframe.html?url=/storage/ag/g/Eagler-Mobile/index.html",
+      "categories": [
+        "skill"
+      ]
+    },   
+    {
+      "label": "EaglerCraft",
+      "imageUrl": "/storage/ag/g/EaglerCraft/IMG_2922.jpeg",
+      "url": "/iframe.html?url=/storage/ag/g/EaglerCraft/index.html",
+      "categories": [
+        "skill"
+      ]
+    },
     {
       "label": "Smashy Roads",
       "url": "/iframe.html?url=/storage/ag/g/smashyroad",
