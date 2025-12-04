@@ -1,206 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scramjet Embed</title>
-  <link rel="icon" href="favicon.webp" />
-  <link rel="prefetch" href="/scram/scramjet.worker.js" />
-  <link rel="prefetch" href="/scram/scramjet.shared.js" />
-  <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&amp;family=Inter+Tight:ital,wght@0,100..900;1,100..900&amp;family=Inter:wght@100..900&amp;display=swap&amp;"
-    rel="stylesheet" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
-    rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dreamland"></script>
-  <style>
-    body,
-    html {
-      margin: 0;
-      padding: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background-color: #000;
-    }
-    #iframe-container {
-      width: 100%;
-      height: 100%;
-    }
-    #iframe-container iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background-color: #fff;
-    }
-  </style>
-  <script src="/baremux/index.js"></script>
-  <script src="/scram/scramjet.all.js"></script>
-  <script src="/config.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scramjet Embed</title>
+<link rel="icon" href="favicon.webp" />
+<link rel="prefetch" href="/scram/scramjet.worker.js" />
+<link rel="prefetch" href="/scram/scramjet.shared.js" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&amp;family=Inter+Tight:ital,wght@0,100..900;1,100..900&amp;family=Inter:wght@100..900&amp;display=swap&amp;" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dreamland"></script>
+<style>
+body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background-color: #000; }
+#iframe-container { width: 100%; height: 100%; }
+#iframe-container iframe { width: 100%; height: 100%; border: none; background-color: #fff; }
+</style>
+<script src="/baremux/index.js"></script>
+<script src="/scram/scramjet.all.js"></script>
+<script src="/config.js"></script>
 </head>
 <body>
-  <div id="iframe-container"></div>
-  <script>
-    const { ScramjetController } = $scramjetLoadController();
-    const scramjet = new ScramjetController({
-      prefix: "/scramjet/",
-      files: {
-        wasm: "/scram/scramjet.wasm.wasm",
-        all: "/scram/scramjet.all.js",
-        sync: "/scram/scramjet.sync.js",
-      }
+<div id="iframe-container"></div>
+<script>
+const { ScramjetController } = $scramjetLoadController();
+const scramjet = new ScramjetController({
+  prefix: "/scramjet/",
+  files: {
+    wasm: "/scram/scramjet.wasm.wasm",
+    all: "/scram/scramjet.all.js",
+    sync: "/scram/scramjet.sync.js",
+  }
+});
+scramjet.init();
+navigator.serviceWorker.register("./sw.js");
+const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
+const store = {
+  url: "https://",
+  wispurl: _CONFIG?.wispurl || (location.protocol === "https:" ? "wss" : "ws") + "://" + location.host + "/wisp/",
+  bareurl: _CONFIG?.bareurl || (location.protocol === "https:" ? "https" : "http") + "://" + location.host + "/bare/",
+  proxy: "",
+  transport: "/epoxy/index.mjs",
+};
+
+function getParams() {
+  const hash = location.hash.substring(1);
+  const [noRedirectPart, urlPart] = hash.split("#");
+  const noRedirect = location.search.includes("no-redirect") || (noRedirectPart && noRedirectPart.includes("no-redirect"));
+  const rawUrl = urlPart || noRedirectPart || hash;
+  let url = rawUrl;
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
+  }
+  return { url: url || "https://google.com/", noRedirect };
+}
+
+async function loadFromHash() {
+  const { url, noRedirect } = getParams();
+  await waitForTransport();
+  const frame = scramjet.createFrame();
+  if (noRedirect) {
+    frame.frame.sandbox = "allow-scripts allow-same-origin allow-modals allow-forms";
+    frame.frame.style.pointerEvents = "none";
+    frame.frame.addEventListener("load", () => {
+      try {
+        const doc = frame.frame.contentDocument || frame.frame.contentWindow.document;
+        doc.addEventListener("click", e => e.preventDefault(), true);
+        doc.addEventListener("auxclick", e => e.preventDefault(), true);
+        doc.addEventListener("contextmenu", e => e.preventDefault(), true);
+        const style = doc.createElement("style");
+        style.textContent = `* { user-select: none !important; } a, button, [onclick], [onmousedown], [role="button"] { pointer-events: none !important; }`;
+        doc.head.appendChild(style);
+      } catch (e) {}
     });
-    scramjet.init();
-    navigator.serviceWorker.register("./sw.js");
-    const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
-    const store = {
-      url: "https://",
-      wispurl:
-        _CONFIG?.wispurl ||
-        (location.protocol === "https:" ? "wss" : "ws") +
-        "://" +
-        location.host +
-        "/wisp/",
-      bareurl:
-        _CONFIG?.bareurl ||
-        (location.protocol === "https:" ? "https" : "http") +
-        "://" +
-        location.host +
-        "/bare/",
-      proxy: "",
-      transport: "/epoxy/index.mjs",
-    };
-    let blockPopupsEnabled = false;
-    async function loadFromHash() {
-      const hash = window.location.hash.substring(1);
-      const noRedirect = hash.startsWith("no-redirect#");
-      blockPopupsEnabled = noRedirect;
-      let url = noRedirect ? hash.substring(12) : hash;
-      if (url) {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-          url = "https://" + url;
-        }
-        await waitForTransport();
-        const frame = scramjet.createFrame();
-        document.getElementById("iframe-container").appendChild(frame.frame);
-        frame.go(url);
-        if (noRedirect) {
-          setupPopupBlocker(frame.frame);
-        }
-      } else {
-        await waitForTransport();
-        const frame = scramjet.createFrame();
-        document.getElementById("iframe-container").appendChild(frame.frame);
-        frame.go("https://google.com/");
-      }
-    }
-    function setupPopupBlocker(iframe) {
-      const blockInterval = setInterval(() => {
+  }
+  document.getElementById("iframe-container").appendChild(frame.frame);
+  frame.go(url);
+}
+
+async function waitForTransport() {
+  let attempts = 0;
+  const maxAttempts = 10;
+  while (attempts < maxAttempts) {
+    try {
+      await connection.setTransport("/epoxy/index.mjs", [{ wisp: store.wispurl }]);
+      return;
+    } catch (e) {
+      try {
+        await connection.setTransport("/baremod/index.mjs", [store.bareurl]);
+        return;
+      } catch (e2) {
         try {
-          const iframeWindow = iframe.contentWindow;
-          const iframeDocument = iframe.contentDocument || iframeWindow.document;
-          if (iframeWindow.open && !iframeWindow.open.__blocked) {
-            iframeWindow.open = new Proxy(iframeWindow.open, {
-              apply: function(target, thisArg, argumentsList) {
-                console.log("Blocked popup attempt");
-                return { closed: false, close: () => {}, location: { href: "" } };
-              }
-            });
-            iframeWindow.open.__blocked = true;
-          }
-          const links = iframeDocument.querySelectorAll('a[target="_blank"]');
-          links.forEach(link => {
-            if (!link.__popupBlocked) {
-              link.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("Blocked target=_blank link");
-              }, true);
-              link.__popupBlocked = true;
-            }
-          });
-        } catch (e) {
-        }
-      }, 500);
-      iframe.addEventListener('load', () => {
-        try {
-          const iframeWindow = iframe.contentWindow;
-          if (iframeWindow.open && !iframeWindow.open.__blocked) {
-            iframeWindow.open = new Proxy(iframeWindow.open, {
-              apply: function(target, thisArg, argumentsList) {
-                console.log("Blocked popup attempt");
-                return { closed: false, close: () => {}, location: { href: "" } };
-              }
-            });
-            iframeWindow.open.__blocked = true;
-          }
-        } catch (e) {
-        }
-      });
-    }
-    window.addEventListener('beforeunload', (e) => {
-      if (blockPopupsEnabled) {
-        const target = e.target;
-        if (target !== window.document) {
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
-        }
-      }
-    }, true);
-    const originalWindowOpen = window.open;
-    window.open = function(...args) {
-      if (blockPopupsEnabled) {
-        const stack = new Error().stack;
-        if (stack && !stack.includes('loadFromHash')) {
-          console.log("Blocked popup from parent window");
-          return { closed: false, close: () => {}, location: { href: "" } };
-        }
-      }
-      return originalWindowOpen.apply(this, args);
-    };
-    async function waitForTransport() {
-      let attempts = 0;
-      const maxAttempts = 10;
-      while (attempts < maxAttempts) {
-        try {
-          await connection.setTransport("/epoxy/index.mjs", [{ wisp: store.wispurl }]);
+          await connection.setTransport("/libcurl/index.mjs", [{ wisp: store.wispurl }]);
           return;
-        } catch (e) {
-          try {
-            await connection.setTransport("/baremod/index.mjs", [store.bareurl]);
-            return;
-          } catch (e2) {
-            try {
-              await connection.setTransport("/libcurl/index.mjs", [{ wisp: store.wispurl }]);
-              return;
-            } catch (e3) {
-              attempts++;
-              if (attempts >= maxAttempts) {
-                console.error("Failed to set any transport after", maxAttempts, "attempts");
-                throw new Error("No bare clients available");
-              }
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
+        } catch (e3) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            console.error("Failed to set any transport after", maxAttempts, "attempts");
+            throw new Error("No bare clients available");
           }
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
     }
-    window.addEventListener("hashchange", async () => {
-      const container = document.getElementById("iframe-container");
-      container.innerHTML = "";
-      await loadFromHash();
-    });
-    window.addEventListener("load", async () => {
-      await loadFromHash();
-    });
-  </script>
+  }
+}
+
+window.addEventListener("hashchange", async () => {
+  document.getElementById("iframe-container").innerHTML = "";
+  await loadFromHash();
+});
+
+window.addEventListener("load", async () => {
+  await loadFromHash();
+});
+</script>
 </body>
 </html>
