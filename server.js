@@ -297,12 +297,30 @@ app.post("/api/save-localstorage", (req, res) => {
   }
   try {
     const { data } = req.body;
+    
+    if (!data || typeof data !== 'string') {
+      return res.status(400).json({ error: "Invalid data format" });
+    }
+    
+    if (data.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: "Data too large. Maximum size is 10MB" });
+    }
+    
+    let parsedData;
+    try {
+      parsedData = JSON.parse(data);
+    } catch (e) {
+      return res.status(400).json({ error: "Invalid JSON format" });
+    }
+    
+    const sanitizedData = JSON.stringify(parsedData);
+    
     const now = Date.now();
     db.prepare(`
       INSERT INTO user_settings (user_id, localstorage_data, updated_at)
       VALUES (?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET localstorage_data = ?, updated_at = ?
-    `).run(req.session.user.id, data, now, data, now);
+    `).run(req.session.user.id, sanitizedData, now, sanitizedData, now);
     return res.status(200).json({ message: "LocalStorage saved" });
   } catch (error) {
     console.error('Save error:', error);
@@ -351,14 +369,37 @@ app.get("/api/changelog", (req, res) => {
 });
 app.get("/api/feedback", (req, res) => {
   try {
+    const isAdmin = req.session.user ? (() => {
+      try {
+        const user = db.prepare('SELECT is_admin, email FROM users WHERE id = ?').get(req.session.user.id);
+        return user && (user.is_admin === 1 && user.email === process.env.ADMIN_EMAIL || user.is_admin === 2 || user.is_admin === 3);
+      } catch {
+        return false;
+      }
+    })() : false;
+    
     const feedback = db.prepare(`
-      SELECT f.*, u.username, u.email
+      SELECT f.*, u.username${isAdmin ? ', u.email' : ''}
       FROM feedback f
       LEFT JOIN users u ON f.user_id = u.id
       ORDER BY f.created_at DESC
       LIMIT 100
     `).all();
-    return res.status(200).json({ feedback });
+    
+    const sanitizedFeedback = feedback.map(f => {
+      const safe = {
+        id: f.id,
+        content: f.content,
+        created_at: f.created_at,
+        username: f.username || 'Anonymous'
+      };
+      if (isAdmin && f.email) {
+        safe.email = f.email;
+      }
+      return safe;
+    });
+    
+    return res.status(200).json({ feedback: sanitizedFeedback });
   } catch (error) {
     console.error('Feedback list error:', error);
     return res.status(500).json({ error: "Internal server error" });
@@ -563,9 +604,10 @@ const handleHttpVerification = (req, res, next) => {
 const handleUpgradeVerification = (req, socket, next) => {
   const verified = isVerified(req);
   const isWsBrowser = isBrowser(req);
-  console.log(`WebSocket Upgrade Attempt: URL=${req.url}, Verified=${verified}, IsBrowser=${isWsBrowser}, Cookies=${req.headers.cookie || 'none'}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`WebSocket Upgrade Attempt: URL=${req.url}, Verified=${verified}, IsBrowser=${isWsBrowser}`);
+  }
   
-  // Allow all WISP endpoints without verification
   if (req.url.startsWith("/wisp/") || 
       req.url.startsWith("/api/wisp-premium/") || 
       req.url.startsWith("/api/alt-wisp-1/") || 
@@ -578,18 +620,32 @@ const handleUpgradeVerification = (req, socket, next) => {
     return next();
   }
   
-  console.log(`WebSocket Rejected: URL=${req.url}, Reason=${verified ? 'Not a browser' : 'Not verified'}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`WebSocket Rejected: URL=${req.url}, Reason=${verified ? 'Not a browser' : 'Not verified'}`);
+  }
   socket.destroy();
 };
 
 const server = createServer((req, res) => {
+  const handleBareRequest = (bareServer) => {
+    try {
+      bareServer.routeRequest(req, res);
+    } catch (error) {
+      console.error('Bare server error:', error.message);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal server error");
+      }
+    }
+  };
+  
   if (bare.shouldRoute(req)) {
     handleHttpVerification(req, res, () => {
-      bare.routeRequest(req, res);
+      handleBareRequest(bare);
     });
   } else if (barePremium.shouldRoute(req)) {
     handleHttpVerification(req, res, () => {
-      barePremium.routeRequest(req, res);
+      handleBareRequest(barePremium);
     });
   } else {
     app.handle(req, res);
@@ -597,10 +653,19 @@ const server = createServer((req, res) => {
 });
 
 server.on("upgrade", (req, socket, head) => {
+  const handleBareUpgrade = (bareServer) => {
+    try {
+      bareServer.routeUpgrade(req, socket, head);
+    } catch (error) {
+      console.error('Bare server upgrade error:', error.message);
+      socket.destroy();
+    }
+  };
+  
   if (bare.shouldRoute(req)) {
-    handleUpgradeVerification(req, socket, () => bare.routeUpgrade(req, socket, head));
+    handleUpgradeVerification(req, socket, () => handleBareUpgrade(bare));
   } else if (barePremium.shouldRoute(req)) {
-    handleUpgradeVerification(req, socket, () => barePremium.routeUpgrade(req, socket, head));
+    handleUpgradeVerification(req, socket, () => handleBareUpgrade(barePremium));
   } else if (req.url?.startsWith("/wisp/") || 
              req.url?.startsWith("/api/wisp-premium/") || 
              req.url?.startsWith("/api/alt-wisp-1/") || 
@@ -611,14 +676,16 @@ server.on("upgrade", (req, socket, head) => {
     if (req.url.startsWith("/api/alt-wisp-1/")) req.url = req.url.replace("/api/alt-wisp-1/", "/wisp/");
     if (req.url.startsWith("/api/alt-wisp-2/")) req.url = req.url.replace("/api/alt-wisp-2/", "/wisp/");
     if (req.url.startsWith("/api/alt-wisp-3/")) req.url = req.url.replace("/api/alt-wisp-3/", "/wisp/");
-    wisp.routeRequest(req, socket, head);
+    try {
+      wisp.routeRequest(req, socket, head);
+    } catch (error) {
+      console.error('WISP server error:', error.message);
+      socket.destroy();
+    }
   } else {
     socket.destroy();
   }
 });
-// In my serverside config I rewrite /api/bare-premium/ and /api/wisp-premium/ to go to a bare/wisp servers from non-flagged ip datacenters to allow for cloudflare/google protected sites to work.
-// If you are self hosting, this will not apply to you, and google/youtube/cloudflare protected sites will probably not work unless you run this on a non-flagged ip.
-// I also do the same for /api/alt-wisp-1/, /api/alt-wisp-2/, and /api/alt-wisp-3/ to different bare/wisp servers for load balancing and vpn connections
 
 const port = parseInt(process.env.PORT || "3000");
 

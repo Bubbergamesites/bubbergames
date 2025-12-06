@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import db from '../db.js';
 
+const DUMMY_HASH = '$2b$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ12';
+
 export async function signinHandler(req, res) {
   const { email, password } = req.body;
   
@@ -11,13 +13,11 @@ export async function signinHandler(req, res) {
   try {
     const user = db.prepare('SELECT id, email, password_hash, username, bio, avatar_url, email_verified, ip FROM users WHERE email = ?').get(email);
     
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    const hashToCompare = user ? user.password_hash : DUMMY_HASH;
+    const passwordMatch = await bcrypt.compare(password, hashToCompare);
     
-    if (!passwordMatch) {
+    if (!user || !passwordMatch) {
+      await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 50)));
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 

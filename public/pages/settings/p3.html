@@ -103,6 +103,8 @@
           <label class="form-label">Confirm Password</label>
           <input type="password" id="confirm-password" class="form-input" placeholder="Confirm your password" required>
         </div>
+        <input type="text" name="website" id="hp_website" autocomplete="off" style="display:none !important; position:absolute; left:-9999px; opacity:0; width:0; height:0;">
+        <input type="hidden" name="bot_token" id="bot_token">
         <!--
         <div class="form-group">
           <label class="form-label">School</label>
@@ -123,6 +125,13 @@
   </div>
   <script src="/storage/js/popup.js"></script>
   <script>
+    const formStartTime = Date.now();
+    
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const t = Date.now() + ":" + crypto.getRandomValues(new Uint32Array(1))[0];
+      document.getElementById("bot_token").value = btoa(t);
+    }
+    
     document.getElementById('signup-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value;
@@ -132,6 +141,9 @@
       const ageInput = document.getElementById('age');
       const school = schoolInput ? schoolInput.value : null;
       const age = ageInput ? ageInput.value : null;
+      const honeypot = document.getElementById('hp_website').value;
+      const botToken = document.getElementById('bot_token').value;
+      
       if (password !== confirmPassword) {
         showPopup('Passwords do not match', 'error');
         return;
@@ -140,15 +152,26 @@
         showPopup('Password must be at least 8 characters', 'error');
         return;
       }
+      if (!botToken) {
+        showPopup('Signup failed.', 'error');
+        return;
+      }
+      const formTime = Date.now() - formStartTime;
       const submitBtn = document.getElementById('submit-btn');
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating account...';
       try {
         const response = await fetch('/api/signup', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Form-Time': formTime.toString(),
+            'X-User-Agent': navigator.userAgent,
+            'X-Language': navigator.language || 'en',
+            'X-Platform': navigator.platform || 'unknown'
+          },
           credentials: 'include',
-          body: JSON.stringify({ email, password, school, age }),
+          body: JSON.stringify({ email, password, school, age, website: honeypot, bot_token: botToken }),
         });
         const data = await response.json();
         if (response.ok) {
@@ -165,7 +188,7 @@
             }
           }, 2000);
         } else {
-          showPopup(data.error || 'Signup failed. Please try again.', 'error');
+          showPopup('Signup failed.', 'error');
           submitBtn.disabled = false;
           submitBtn.textContent = 'Sign Up';
         }
